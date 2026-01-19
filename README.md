@@ -89,12 +89,22 @@ Examples:
 - 2000: leap year (divisible by 400)
 - 1900: not a leap year (divisible by 100 but not 400)
 
+## Requirements
+
+A postscript interpreter is required to generate a PDF from the postscript source. May I recommend Ghostscript? 👻
+
 ## Usage
 
 Generate the calendar PDF with:
 
 ```bash
 gs -o calendar.pdf -dEmbedAllFonts=true -sDEVICE=pdfwrite calendar.ps
+```
+
+Note: Some newer versions of Ghostscript (tested on macOS Sequoia 15.7.1 with GPL Ghostscript 10.06.0; YMMV) may require some or all of the following arguments for proper external file inclusion:
+
+```
+-I. -dNOSAFER --permit-file-read=/
 ```
 
 ## Why the International Fixed Calendar?
