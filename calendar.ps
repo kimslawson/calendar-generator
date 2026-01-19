@@ -1,20 +1,21 @@
 %!PS
-% Author: Zac Levinson
-% Date: June 6, 2015
+% Original author: Zac Levinson (2016)
+% Modified in 2026 for proper IFC implementation 
+% by Kim Slawson (kimslawson@gmail.com)
 %
 % Description:
-% Creates an international fixed calendar with 8x8 inch pages. Gregorian dates
-% are displayed on the bottoms of each box. This file was designed for a 2016
-% calendar, so the 1st is on a Friday. There is no easy way to change this at
-% the moment, but everything else is very general. There is a boolean variable
-% to control whether or not this is a leap year.
-%
-% Holidays and art are defined at the very bottom of the file. There are two
-% functions available. One will print a proof of the spreads, and the other
-% will print an imposition for binding.
+% Creates an International Fixed Calendar with proper implementation:
+% - 13 months of 28 days each (all starting on Sunday)
+% - Year Day at end of year (non-weekday)
+% - Leap Day at end of June (non-weekday, mid-year position)
+% - Gregorian date AND weekday conversion labels for each day
 %
 % Usage:
 % gs -o calendar.pdf -dEmbedAllFonts=true -sDEVICE=pdfwrite calendar.ps
+%
+% Note: Some newer versions of ghostscript may require some or all of the
+% following for proper external file inclusion:
+% -I. -dNOSAFER --permit-file-read=/
 
 (Fonts/LemonMilk/LemonMilk.pfa) run
 (Fonts/Petita/PetitaLight.pfa) run
@@ -25,10 +26,15 @@
 /hcenter {dup stringwidth pop 2 div neg} def
 <</PageSize [8 inch 16 inch]>> setpagedevice
 
-/leap_yr true def
+% CONFIGURATION - Set these for the target year
+/target_year 2026 def
+/leap_yr false def  % 2026 is not a leap year
+/greg_jan1_day 4 def  % Thursday (0=Sun, 1=Mon, ..., 6=Sat) - Jan 1, 2026
+
 /margin_w 0.5 inch def
 /colwidth 1 inch def
 /day_labels [(Sunday) (Monday) (Tuesday) (Wednesday) (Thursday) (Friday) (Saturday)] def
+/day_abbrev [(Sun) (Mon) (Tue) (Wed) (Thu) (Fri) (Sat)] def
 
 /concatstrings % (a) (b) -> (ab)  
    { exch dup length    
@@ -37,14 +43,14 @@
      4 -1 roll putinterval
    } bind def 
 
-/gregdate
-    {% Determine the date on the Gregorian calendar given the
-     % number of days past Jan. 1   
+/gregdate_and_weekday
+    {% Determine the date and weekday on the Gregorian calendar given the
+     % number of days past Jan. 1
+     % Returns: (Mon. Jan. 1)
         /day_annum exch def
 
         % Define arrays for abbreviated month names, month lengths
-        % and cummulative day counts. The day counts need to be adjusted
-        % if it is a leap year
+        % and cumulative day counts
         /month_names [(Jan.) (Feb.) (Mar.) (Apr.)
                       (May)  (Jun.) (Jul.) (Aug.)
                       (Sep.) (Oct.) (Nov.) (Dec.)] def
@@ -57,21 +63,27 @@
             /month_cummu [31 60 91 121 152 182 213 244 274 305 335 366] def
         } if
 
-        % Determine which month the date is in by subtracting the
-        % cummulative day counts until we get a number less than one
+        % Calculate weekday (0=Sunday)
+        /weekday_num day_annum greg_jan1_day add 7 mod def
+        
+        % Determine which month the date is in
+        /month_idx 0 def
         0 1 month_cummu length 1 sub{
             /i exch def
 
             day_annum month_cummu i get sub 1 lt {
+                /month_idx i def
                 day_annum month_cummu i get sub
                 exit
             } if
         } for
         
-        % Determine which day in the month we are in, and create
-        % the string to put on the stack
-        /daynum exch month_lengths i get add def
-        month_names i get ( ) concatstrings
+        % Determine which day in the month we are in (1-based)
+        /daynum exch month_lengths month_idx get add 1 add def
+        
+        % Create the string: "Mon. Jan. 1"
+        day_abbrev weekday_num get ( ) concatstrings
+        month_names month_idx get concatstrings ( ) concatstrings
         daynum 2 string cvs concatstrings
     } def
 
@@ -83,9 +95,7 @@
         /cy exch def
         /cx exch def
 
-        % Draw a 1 inch line on the bottom of each day about
-        % the specified center. Days less than 8 have nothing
-        % above them, so they need top bars too.
+        % Draw lines for each day
         3 setlinewidth
         newpath
             cx cy moveto 0.5 inch neg 0.5 inch neg rmoveto
@@ -104,20 +114,18 @@
         setfont
         0.75 setgray
 
-        % Move to the center of the box, convert the number
-        % to a string and offset the pen to center the text
+        % Display the IFC day number
         cx cy moveto
         day 2 string cvs 
         hcenter numsize 4 div neg rmoveto show
 
-        % Set font for Gregorian calendar date
+        % Set font for Gregorian calendar date with weekday
         /PetitaLight findfont
-        12 scalefont
+        10 scalefont
         setfont
         0 setgray
 
-        % Move to the bottom of the box + 8pts and center
-        % the Gregorian text horizontally
+        % Move to the bottom of the box and center the Gregorian text
         cx cy moveto
         0 0.5 inch neg 8 add rmoveto
         gregday hcenter 0 rmoveto show
@@ -128,8 +136,7 @@
         setfont
         0 setgray
 
-        % Move to the top of the box - 12pts and center
-        % the holiday text horizontally
+        % Move to the top of the box and center the holiday text
         cx cy moveto
         0 0.5 inch 12 sub rmoveto
         holiday hcenter 0 rmoveto show
@@ -160,24 +167,27 @@
         restore
         0 8 inch neg translate
 
-        % Set font for month headers and display month
+        % Set font for month headers and display month with year
         /LemonMilk findfont
         48 scalefont
         setfont
-        margin_w 6 inch moveto
+        margin_w 7 inch moveto
         month show
+        
+        % Add year after month name
+        ( ) show
+        target_year 10 string cvs show
 
         % Set font for day headers
         /PetitaBold findfont
         12 scalefont
         setfont
 
-        % Create day label array and loop over it to add headers to the page
+        % Create day label array and loop over it to add headers
         /num_days 7 def
         0 1 num_days 1 sub
         {/daynum exch def
-            % Move to the center of the first box, then offset to the correct column
-            0.5 inch colwidth 2 div add 7 inch moveto
+            0.5 inch colwidth 2 div add 6.5 inch moveto
             daynum inch 0 rmoveto
 
             % Center the text within the column
@@ -185,25 +195,21 @@
             hcenter 0 rmoveto show
         } for
 
-        % Determine which month this is for
+        % Determine which month this is (0-12)
         0 1 month_names length 1 sub{
             /month_ind exch def
             month month_names month_ind get eq{ exit } if
         } for
 
-        % Loop over a 5x7 grid of days
-        /num_weeks 5 def
+        % Loop over a 4x7 grid of days (28 days total)
+        /num_weeks 4 def
         0 1 num_weeks 1 sub
         { /weeknum exch def
             0 1 num_days 1 sub
             { /daynum exch def
-                % Locate the center of each box and determine the day
-                % number within the month. The day number is offset so that
-                % the month starts on a Friday
-                % /cx 0 inch margin_w add colwidth 2 div add daynum inch add def
                 /cx margin_w colwidth 2 div add daynum inch add def
-                /cy 6.25 inch weeknum inch sub def
-                /date weeknum num_days mul daynum add 4 sub def
+                /cy 5.75 inch weeknum inch sub def
+                /date weeknum num_days mul daynum add 1 add def
 
                 % Initialize the holiday string to an empty string
                 % then loop over all of the holidays for the month
@@ -218,25 +224,111 @@
                     } if
                 } for
 
-                % Determine how many days past Jan. 1 this day is
-                /day_annum month_ind 28 mul date add def
-
-                % Draw the box for the current day. Our loop extends over
-                % too many days, so we just need to make sure we're on a
-                % valid day before we draw it. December has 29 days, so we
-                % need to check for that too. In leap years we need to add
-                % a 30th day to December.
-                date 0 gt date 29 lt and
-                month (December) eq date 29 eq and or
-                month (December) eq date 30 eq and leap_yr and or {
-                    cx cy date
-                    day_annum gregdate
-                    holiday_str
-                    drawcalbox
+                % Calculate day of year (0-based from Jan 1)
+                % Each IFC month is 28 days, month_ind is 0-12
+                % month_ind: 0=Jan, 1=Feb, ..., 6=Sol, ..., 12=Dec
+                /day_annum month_ind 28 mul date add 1 sub def
+                
+                % In leap years, add 1 for months from Sol onward (after Leap Day)
+                leap_yr month_ind 6 ge and {
+                    /day_annum day_annum 1 add def
                 } if
+
+                % Draw the box for the current day
+                cx cy date
+                day_annum gregdate_and_weekday
+                holiday_str
+                drawcalbox
             } for
         } for
 
+        % Add Leap Day after June (before Sol) if leap year
+        month (June) eq {
+            % Draw full-width Leap Day row
+            3 setlinewidth
+            newpath
+                margin_w 1.75 inch moveto 0 0.5 inch neg rmoveto
+                7 inch 0 rlineto
+                0 1 inch rmoveto
+                7 inch neg 0 rlineto
+            stroke
+            
+            leap_yr {
+                % Leap Day occurs - show it
+                /LemonMilk findfont
+                38 scalefont
+                setfont
+                0.75 setgray
+                
+                margin_w 3.5 inch add 1.75 inch moveto
+                0 0.125 inch neg rmoveto
+                (29) hcenter 0 rmoveto show
+                
+                % Holiday label
+                /PetitaMedium findfont
+                10 scalefont
+                setfont
+                0 setgray
+                margin_w 3.5 inch add 1.75 inch moveto
+                0 0.5 inch 12 sub rmoveto
+                (Leap Day) hcenter 0 rmoveto show
+                
+                % Gregorian date
+                /PetitaLight findfont
+                10 scalefont
+                setfont
+                0 setgray
+                margin_w 3.5 inch add 1.75 inch moveto
+                0 0.5 inch neg 8 add rmoveto
+                6 28 mul gregdate_and_weekday hcenter 0 rmoveto show
+            } {
+                % No leap day - show placeholder
+                /PetitaLight findfont
+                9 scalefont
+                setfont
+                0.5 setgray
+                margin_w 3.5 inch add 1.75 inch moveto
+                0 0.5 inch neg 8 add rmoveto
+                (No leap day this year) hcenter 0 rmoveto show
+            } ifelse
+        } if
+        
+        % Add Year Day as full-width row at bottom of December
+        month (December) eq {
+            % Draw full-width Year Day row
+            3 setlinewidth
+            newpath
+                margin_w 1.75 inch moveto 0 0.5 inch neg rmoveto
+                7 inch 0 rlineto
+                0 1 inch rmoveto
+                7 inch neg 0 rlineto
+            stroke
+            
+            % Year Day label
+            /LemonMilk findfont
+            38 scalefont
+            setfont
+            0.75 setgray
+            
+            margin_w 3.5 inch add 1.75 inch moveto
+            0 0.125 inch neg rmoveto
+            (Year Day) hcenter 0 rmoveto show
+            
+            % Gregorian date
+            /PetitaLight findfont
+            10 scalefont
+            setfont
+            0 setgray
+            margin_w 3.5 inch add 1.75 inch moveto
+            0 0.5 inch neg 8 add rmoveto
+            /day_annum 364 def
+            leap_yr {
+                /day_annum day_annum 1 add def % 365 in leap years
+            } if
+            day_annum gregdate_and_weekday hcenter 0 rmoveto show
+        } if
+
+        % Color patches at bottom
         colors length 0 eq not{
             /patch_width 7 colors length div inch def
             0 1 colors length 1 sub{
@@ -253,6 +345,8 @@
     showpage
     } def
 
+% Year Day and Leap Day are now integrated into their respective month pages
+
 % Define holidays
 /holidays [ 
     [ % January
@@ -264,7 +358,6 @@
         [17 (Valentine's Day)]
         [18 (President's Day)]
     ][ % March
-        [4 (Leap Day)]
         [11 (Guam Discovery Day)]
         [17 (Daylight Savings begins)]
         [21 (St. Patrick's Day)]
@@ -272,7 +365,7 @@
     ][ % April
         [1 (Good Friday)]
         [3 (Easter)]
-        [8 (Fool's Day)]
+        [8 (April Fool's Day)]
     ][ % May
         [16 (Edwin Land Birthday)]
         [17 (Mother's Day)]
@@ -309,7 +402,6 @@
         [16 (Pan Am. Aviation Day)]
         [20 (Winter Solstice)]
         [24 (Christmas Day)]
-        [30 (Year Day)]
     ]
 ] def
 
@@ -340,11 +432,11 @@
 [[0.00 0.31 0.68 0.00] [1.00 0.50 0.50 0.40] [0.18 0.00 0.22 0.00]]                         % June
 [[1.00 0.80 0.00 0.00] [0.00 0.17 0.65 0.00] [0.00 1.00 0.97 0.00] [0.37 0.10 0.26 0.00]]   % Sol
 [[0.10 0.10 0.40 0.00] [0.00 0.00 0.00 0.00] [0.16 0.61 0.43 0.04]]                         % July
-[[0.00 0.70 0.60 0.10] [0.00 0.20 1.00 0.10] [0.40 0.10 0.05 0.10] [0.00 0.00 0.10 0.10]] % August
+[[0.00 0.70 0.60 0.10] [0.00 0.20 1.00 0.10] [0.40 0.10 0.05 0.10] [0.00 0.00 0.10 0.10]]   % August
 [[0.00 0.90 0.90 0.00] [0.00 0.00 0.00 0.20] [0.00 0.00 0.00 0.00] [0.00 0.19 0.19 0.18]]   % September
 [[0.00 0.50 1.00 0.00] [0.00 0.00 0.00 0.00] [1.00 0.00 0.60 0.00] [0.40 0.45 0.66 0.00]]   % October
-[[0.23 0.47 0.53 0.20] [0.12 0.92 1.00 0.00] [0.15 0.40 1.00 0.00] [0.85 0.87 1.00 0.00]] % November
-[[1.00 0.00 1.00 0.00] [0.17 1.00 1.00 0.00] [0.55 0.40 0.00 0.47] [0.00 0.20 0.70 0.05]] % December
+[[0.23 0.47 0.53 0.20] [0.12 0.92 1.00 0.00] [0.15 0.40 1.00 0.00] [0.85 0.87 1.00 0.00]]   % November
+[[1.00 0.00 1.00 0.00] [0.17 1.00 1.00 0.00] [0.55 0.40 0.00 0.47] [0.00 0.20 0.70 0.05]]   % December
 ] def
 
 % Create calendar pages
@@ -353,6 +445,28 @@
           /showpage {} bind def
           cover_path run
     restore
+    
+    % Add upside-down year to cover (top-left corner when upside down = bottom-right when right-side up)
+    % Position: 0.25 inch from top-left when calendar is flipped
+    gsave
+        % Move to position (accounting for 16 inch page height)
+        0.25 inch 16 inch 0.25 inch sub moveto
+        
+        % Rotate 180 degrees for upside-down text
+        180 rotate
+        
+        % Set white color and LemonMilk font
+        1 setgray
+        /LemonMilk findfont
+        30 scalefont
+        setfont
+        
+        % Display year (right-aligned so it flows left from anchor point)
+        target_year 10 string cvs
+        dup stringwidth pop neg 0 rmoveto  % Move left by width of text
+        show
+    grestore
+    
     showpage
 
     (January) image_paths 0 get holidays 0 get color_list 0 get draw_calpage
