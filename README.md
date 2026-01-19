@@ -90,7 +90,7 @@ Examples:
 Generate the calendar PDF with:
 
 ```bash
-gs -o calendar.pdf -dEmbedAllFonts=true -sDEVICE=pdfwrite calendar_ifc.ps
+gs -o calendar.pdf -dEmbedAllFonts=true -sDEVICE=pdfwrite calendar.ps
 ```
 
 ## Why the International Fixed Calendar?
