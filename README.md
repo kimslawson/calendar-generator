@@ -1,5 +1,9 @@
 # International Fixed Calendar Generator - Enhanced Version
 
+## Thanks
+
+A large debt of gratitude is owed to Zac Levinson (mrsquig) for the original calendar generator implementation and Rochester, NY themed artwork.
+
 ## What's New
 
 This enhanced version properly implements the International Fixed Calendar (Cotsworth Plan) with the following improvements:
