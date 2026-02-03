@@ -19,9 +19,7 @@ This enhanced version properly implements the International Fixed Calendar (Cots
 ### 2. Proper Year Day Implementation
 
 - Year Day is now a **non-weekday** (day out of time) at the end of the year
-- It appears on its own special page after December
-- December has exactly 28 days (no longer 29/30)
-- Year Day = December 29 in Gregorian calendar (or Dec 30 in leap years)
+- It appears on its own special page row at the end of December
 
 ### 3. **Mid-Year Leap Day in Sol**
 
